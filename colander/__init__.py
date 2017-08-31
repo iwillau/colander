@@ -1115,6 +1115,15 @@ class Sequence(Positional, SchemaType):
         return self._impl(node, cstruct, callback, accept_scalar)
 
     def flatten(self, node, appstruct, prefix='', listitem=False):
+        if appstruct is null:
+            if node.missing is drop:
+                return {}
+            else:
+                return {'%s%s' % (prefix, node.name): None}
+
+        if len(appstruct) == 0:
+            return {'%s%s' % (prefix, node.name): []}
+
         result = {}
         if listitem:
             selfprefix = prefix

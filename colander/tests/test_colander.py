@@ -1410,6 +1410,36 @@ class TestSequence(unittest.TestCase):
         result = typ.flatten(node, [1, 2])
         self.assertEqual(result, {'node.0': 1, 'node.1': 2})
 
+    def test_flatten_with_null(self):
+        from colander import null
+        node = DummySchemaNode(None, name='node')
+        node.children = [
+            DummySchemaNode(DummyType(), name='foo'),
+        ]
+        typ = self._makeOne()
+        result = typ.flatten(node, null)
+        self.assertEqual(result, {'node': None})
+
+    def test_flatten_with_null_and_drop(self):
+        from colander import null, drop
+        node = DummySchemaNode(None, name='node')
+        node.missing = drop
+        node.children = [
+            DummySchemaNode(DummyType(), name='foo'),
+        ]
+        typ = self._makeOne()
+        result = typ.flatten(node, null)
+        self.assertEqual(result, {})
+
+    def test_flatten_with_empty_list(self):
+        node = DummySchemaNode(None, name='node')
+        node.children = [
+            DummySchemaNode(DummyType(), name='foo'),
+        ]
+        typ = self._makeOne()
+        result = typ.flatten(node, [])
+        self.assertEqual(result, {'node': []})
+
     def test_flatten_with_integer(self):
         from colander import Integer
         node = DummySchemaNode(None, name='node')
@@ -3599,6 +3629,53 @@ class TestFunctional(object):
         for k, v in result.items():
             self.assertEqual(expected[k], v)
 
+    def test_flatten_missing_sequences(self):
+        import colander
+        appstruct = {
+            'int':10,
+            'ob':colander.tests,
+            'tup':(1, 's'),
+            }
+        schema = self._makeSchema()
+        result = schema.flatten(appstruct)
+
+        expected = {
+            'schema.ob': colander.tests,
+            'schema.seq': None,
+            'schema.int': 10,
+            'schema.tup.tupint': 1,
+            'schema.tup.tupstring': 's',
+        }
+
+        for k, v in expected.items():
+            self.assertEqual(result[k], v)
+        for k, v in result.items():
+            self.assertEqual(expected[k], v)
+
+    def test_flatten_empty_sequences(self):
+        import colander
+        appstruct = {
+            'int':10,
+            'ob':colander.tests,
+            'tup':(1, 's'),
+            'seq': [],
+            }
+        schema = self._makeSchema()
+        result = schema.flatten(appstruct)
+
+        expected = {
+            'schema.ob': colander.tests,
+            'schema.seq': [],
+            'schema.int': 10,
+            'schema.tup.tupint': 1,
+            'schema.tup.tupstring': 's',
+        }
+
+        for k, v in expected.items():
+            self.assertEqual(result[k], v)
+        for k, v in result.items():
+            self.assertEqual(expected[k], v)
+
     def test_flatten_mapping_has_no_name(self):
         import colander
         appstruct = {
@@ -3857,6 +3934,7 @@ class TestImperative(unittest.TestCase, TestFunctional):
                 name='mapping',
                 ),
             name='seq2',
+            missing=colander.drop,
             )
 
         schema = colander.SchemaNode(
@@ -3896,7 +3974,7 @@ class TestDeclarative(unittest.TestCase, TestFunctional):
             ob = colander.SchemaNode(colander.GlobalObject(package=colander))
             seq = SequenceOne()
             tup = TupleSchema()
-            seq2 = SequenceTwo()
+            seq2 = SequenceTwo(missing=colander.drop)
 
         schema = MainSchema(name=name)
         return schema
@@ -3939,7 +4017,7 @@ class TestUltraDeclarative(unittest.TestCase, TestFunctional):
             ob = GlobalObjectSchema()
             seq = SequenceOne()
             tup = TupleSchema()
-            seq2 = SequenceTwo()
+            seq2 = SequenceTwo(missing=colander.drop)
 
         MainSchema.name = name
 
@@ -3972,7 +4050,7 @@ class TestDeclarativeWithInstantiate(unittest.TestCase, TestFunctional):
                 tupint = colander.SchemaNode(colander.Int())
                 tupstring = colander.SchemaNode(colander.String())
 
-            @colander.instantiate()
+            @colander.instantiate(missing=colander.drop)
             class seq2(colander.SequenceSchema):
 
                 @colander.instantiate()
@@ -4011,12 +4089,14 @@ class Dummy(object):
 
 class DummySchemaNode(object):
     def __init__(self, typ, name='', exc=None, default=None):
+        from colander import required
         self.typ = typ
         self.name = name
         self.exc = exc
         self.required = default is None
         self.default = default
         self.children = []
+        self.missing = required
 
     def deserialize(self, val):
         from colander import Invalid
